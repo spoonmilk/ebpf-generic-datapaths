@@ -112,6 +112,9 @@ fn main() -> Result<()> {
     info!("Shutting down eBPF daemon...");
     algorithm.cleanup();
     drop(datapath);
-    info!("eBPF datapath detached - '{}' unregistered from TCP", algorithm.name());
+    info!(
+        "eBPF datapath detached - '{}' unregistered from TCP",
+        algorithm.name()
+    );
     Ok(())
 }

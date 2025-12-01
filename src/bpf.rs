@@ -99,7 +99,10 @@ impl EbpfDatapath {
             .attach_struct_ops()
             .context("Failed to attach struct_ops to TCP stack")?;
 
-        info!("struct_ops attached - '{}' registered with TCP", struct_ops_name);
+        info!(
+            "struct_ops attached - '{}' registered with TCP",
+            struct_ops_name
+        );
 
         // Set up ring buffers
         let events = Arc::new(Mutex::new(VecDeque::new()));
