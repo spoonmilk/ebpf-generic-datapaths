@@ -1,6 +1,7 @@
 //! Provides a runner for any algorithm
 
 pub mod cubic;
+pub mod reno;
 
 use crate::bpf::DatapathEvent;
 use anyhow::Result;
@@ -29,12 +30,13 @@ impl AlgorithmRegistry {
     pub fn get(name: &str, init_cwnd_pkts: u32, mss: u32) -> Result<Box<dyn AlgorithmRunner>> {
         match name {
             "cubic" => Ok(Box::new(cubic::CubicRunner::new(init_cwnd_pkts, mss))),
+            "reno" => Ok(Box::new(reno::RenoRunner::new(init_cwnd_pkts, mss))),
             _ => anyhow::bail!("Unknown algorithm: {}", name),
         }
     }
 
     /// List all available algorithms
     pub fn list() -> Vec<&'static str> {
-        vec!["cubic"]
+        vec!["cubic", "reno"]
     }
 }

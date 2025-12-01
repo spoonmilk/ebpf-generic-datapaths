@@ -28,16 +28,8 @@ struct {
     __type(value, struct cwnd_update);
 } cwnd_control SEC(".maps");
 
-// Helper, extracts flow key from socket
-static __always_inline void get_flow_key(struct sock *sk, struct flow_key *key) {
-    key->saddr = sk->__sk_common.skc_rcv_saddr;
-    key->daddr = sk->__sk_common.skc_daddr;
-    key->sport = sk->__sk_common.skc_num;
-    key->dport = __bpf_ntohs(sk->__sk_common.skc_dport);
-}
-
-SEC("struct_ops/ebpf_cubic_init")
-void BPF_PROG(ebpf_cubic_init, struct sock *sk)
+SEC("struct_ops/ebpf_reno_init")
+void BPF_PROG(ebpf_reno_init, struct sock *sk)
 {
     struct flow_event *e;
     
@@ -54,8 +46,8 @@ void BPF_PROG(ebpf_cubic_init, struct sock *sk)
     bpf_ringbuf_submit(e, 0);
 }
 
-SEC("struct_ops/ebpf_cubic_release")
-void BPF_PROG(ebpf_cubic_release, struct sock *sk)
+SEC("struct_ops/ebpf_reno_release")
+void BPF_PROG(ebpf_reno_release, struct sock *sk)
 {
     struct flow_event *e;
     
@@ -71,7 +63,7 @@ void BPF_PROG(ebpf_cubic_release, struct sock *sk)
 }
 
 SEC("struct_ops/ebpf_cubic_cong_avoid")
-void BPF_PROG(ebpf_cubic_cong_avoid, struct sock *sk, __u32 ack, __u32 acked)
+void BPF_PROG(ebpf_reno_cong_avoid, struct sock *sk, __u32 ack, __u32 acked)
 {
     struct tcp_sock *tp = tcp_sk(sk);
     struct measurement *m;
@@ -105,8 +97,8 @@ void BPF_PROG(ebpf_cubic_cong_avoid, struct sock *sk, __u32 ack, __u32 acked)
     }
 }
 
-SEC("struct_ops/ebpf_cubic_cwnd_event")
-void BPF_PROG(ebpf_cubic_cwnd_event, struct sock *sk, enum tcp_ca_event event)
+SEC("struct_ops/ebpf_reno_cwnd_event")
+void BPF_PROG(ebpf_reno_cwnd_event, struct sock *sk, enum tcp_ca_event event)
 {
     struct tcp_sock *tp = tcp_sk(sk);
     struct measurement *m;
@@ -128,25 +120,25 @@ void BPF_PROG(ebpf_cubic_cwnd_event, struct sock *sk, enum tcp_ca_event event)
     }
 }
 
-SEC("struct_ops/ebpf_cubic_ssthresh")
-__u32 BPF_PROG(ebpf_cubic_ssthresh, struct sock *sk)
+SEC("struct_ops/ebpf_reno_ssthresh")
+__u32 BPF_PROG(ebpf_reno_ssthresh, struct sock *sk)
 {
     return tcp_sk(sk)->snd_cwnd;
 }
 
-SEC("struct_ops/ebpf_cubic_undo_cwnd")
-__u32 BPF_PROG(ebpf_cubic_undo_cwnd, struct sock *sk)
+SEC("struct_ops/ebpf_reno_undo_cwnd")
+__u32 BPF_PROG(ebpf_reno_undo_cwnd, struct sock *sk)
 {
     return tcp_sk(sk)->snd_cwnd;
 }
 
 SEC(".struct_ops")
-struct tcp_congestion_ops ebpf_cubic = {
-    .init = (void *)ebpf_cubic_init,
-    .release = (void *)ebpf_cubic_release,
-    .cong_avoid = (void *)ebpf_cubic_cong_avoid,
-    .cwnd_event = (void *)ebpf_cubic_cwnd_event,
-    .ssthresh = (void *)ebpf_cubic_ssthresh,
-    .undo_cwnd = (void *)ebpf_cubic_undo_cwnd,
-    .name = "ebpf_cubic",
+struct tcp_congestion_ops ebpf_reno = {
+    .init = (void *)ebpf_reno_init,
+    .release = (void *)ebpf_reno_release,
+    .cong_avoid = (void *)ebpf_reno_cong_avoid,
+    .cwnd_event = (void *)ebpf_reno_cwnd_event,
+    .ssthresh = (void *)ebpf_reno_ssthresh,
+    .undo_cwnd = (void *)ebpf_reno_undo_cwnd,
+    .name = "ebpf_ccp_reno",
 };

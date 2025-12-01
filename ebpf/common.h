@@ -35,4 +35,12 @@ struct cwnd_update {
     __u32 cwnd_bytes;
 };
 
+// Helper, extracts flow key from socket
+static __always_inline void get_flow_key(struct sock *sk, struct flow_key *key) {
+    key->saddr = sk->__sk_common.skc_rcv_saddr;
+    key->daddr = sk->__sk_common.skc_daddr;
+    key->sport = sk->__sk_common.skc_num;
+    key->dport = __bpf_ntohs(sk->__sk_common.skc_dport);
+}
+
 #endif

@@ -65,11 +65,11 @@ pub struct EbpfDatapath {
 }
 
 impl EbpfDatapath {
-    pub fn new() -> Result<Self> {
-        info!("Loading eBPF object file...");
+    pub fn new(ebpf_path: &str, struct_ops_name: &str) -> Result<Self> {
+        info!("Loading eBPF object file: {}", ebpf_path);
 
         // Load the BPF object file
-        let obj_path = Path::new("ebpf/.output/datapath.bpf.o");
+        let obj_path = Path::new(ebpf_path);
         if !obj_path.exists() {
             anyhow::bail!(
                 "eBPF object file not found: {:?}. Run 'make ebpf' first.",
@@ -92,14 +92,14 @@ impl EbpfDatapath {
         // Attach to tcp stack via struct_ops
         let mut struct_ops_map = obj
             .maps_mut()
-            .find(|m| m.name() == "ebpf_cubic")
-            .context("Failed to find 'ebpf_cubic' struct_ops map")?;
+            .find(|m| m.name() == struct_ops_name)
+            .with_context(|| format!("Failed to find '{}' struct_ops map", struct_ops_name))?;
 
         let link = struct_ops_map
             .attach_struct_ops()
             .context("Failed to attach struct_ops to TCP stack")?;
 
-        info!("struct_ops attached - 'ebpf_cubic' registered with TCP");
+        info!("struct_ops attached - '{}' registered with TCP", struct_ops_name);
 
         // Set up ring buffers
         let events = Arc::new(Mutex::new(VecDeque::new()));

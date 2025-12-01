@@ -69,7 +69,7 @@ fn main() -> Result<()> {
     })?;
 
     // Load eBPF datapath
-    let mut datapath = EbpfDatapath::new()?;
+    let mut datapath = EbpfDatapath::new(algorithm.ebpf_path(), algorithm.struct_ops_name())?;
     info!("eBPF datapath loaded and attached");
 
     // Main event loop

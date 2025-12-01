@@ -171,15 +171,15 @@ impl CubicRunner {
 
 impl AlgorithmRunner for CubicRunner {
     fn name(&self) -> &str {
-        "ebpf_cubic"
+        "ebpf_ccp_cubic"
     }
 
     fn ebpf_path(&self) -> &str {
-        "ebpf/.output/datapath.bpf.o"
+        "ebpf/.output/datapath-cubic.bpf.o"
     }
 
     fn struct_ops_name(&self) -> &str {
-        "ebpf_cubic"
+        "ebpf_ccp_cubic"
     }
 
     fn handle_event(&mut self, event: DatapathEvent) -> Result<Option<CwndUpdate>> {

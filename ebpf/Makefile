@@ -4,7 +4,7 @@ ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 
 .PHONY: all clean vmlinux
 
-all: vmlinux .output/datapath.bpf.o
+all: vmlinux .output/cubic.bpf.o .output/reno.bpf.o
 
 vmlinux.h:
 	@if [ ! -f /sys/kernel/btf/vmlinux ]; then \
@@ -16,11 +16,19 @@ vmlinux.h:
 
 vmlinux: vmlinux.h
 
-.output/datapath.bpf.o: datapath.bpf.c vmlinux.h common.h
+.output/cubic.bpf.o: datapath-cubic.bpf.c vmlinux.h common.h
 	@mkdir -p .output
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
-		-c datapath.bpf.c -o .output/datapath.bpf.o
-	@echo "eBPF object compiled: .output/datapath.bpf.o"
+		-DCCA_NAME=ebpf_ccp_cubic -DCCA_NAME_STR='"ebpf_ccp_cubic"' \
+		-c datapath-cubic.bpf.c -o .output/cubic.bpf.o
+	@echo "eBPF object compiled: .output/cubic.bpf.o (CUBIC)"
+
+.output/reno.bpf.o: datapath-reno.bpf.c vmlinux.h common.h
+	@mkdir -p .output
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
+		-DCCA_NAME=ebpf_ccp_reno -DCCA_NAME_STR='"ebpf_ccp_reno"' \
+		-c datapath.bpf-reno.c -o .output/reno.bpf.o
+	@echo "eBPF object compiled: .output/reno.bpf.o (RENO)"
 
 clean:
 	rm -rf .output vmlinux.h
