@@ -4,3 +4,4 @@ ebpf/vmlinux.h
 ebpf/.output
 .vagrant
 CLAUDE.md
+notes
