@@ -65,9 +65,9 @@ void BPF_PROG(ebpf_generic_init, struct sock *sk) {
     bpf_map_update_elem(&flow_map, &key, &fl, BPF_ANY);
     num_flows++;
 
-    // Send flow creation event to userspace
+    // Setup/Send flow creation event to userspace
     init_event = bpf_ringbuf_reserve(&flow_events, sizeof(*init_event), 0);
-    if(!init_event) {
+    if(!init_event) { // -> should err probably?
         return;
     }
 
@@ -90,9 +90,9 @@ void BPF_PROG(ebpf_generic_release, struct sock *sk) {
     bpf_map_delete_elem(&flow_map, &key);
     num_flows--;
 
-    // Send flow close event to userspace
+    // Cleanup/Send flow close event to userspace
     release_event = bpf_ringbuf_reserve(&flow_events, sizeof(*release_event), 0);
-    if(!release_event) {
+    if(!release_event) { // -> Should err probably?
         return;
     }
 
@@ -102,5 +102,33 @@ void BPF_PROG(ebpf_generic_release, struct sock *sk) {
 
     bpf_ringbuf_submit(release_event, 0);
 }
+
+// Measure flow/ack signals ; separate from rates
+static void measure_flack_signals(struct sock *sk) {
+    struct tcp_sock *tp = tcp_sk(sk);
+    struct measurement *m;
+    struct flow_key key;
+
+    // Setup message and flow key
+    m = bpf_ringbuf_reserve(&measurements, sizeof(*m), 0);
+    if(!m) {
+        return;
+    }
+    __builtin_memset(m, 0, sizeof(*m));
+    get_flow_key(sk, &key);
+
+    m->flow = key;
+    
+
+    
+
+    
+
+
+
+}
+
+
+
 
 

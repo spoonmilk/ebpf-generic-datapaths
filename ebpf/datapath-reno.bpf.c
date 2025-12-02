@@ -3,6 +3,7 @@
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_endian.h>
 #include "common.h"
+#include "datapath-cong-avoid.h"
 
 char _license[] SEC("license") = "GPL";
 
@@ -68,7 +69,7 @@ void BPF_PROG(ebpf_reno_cong_avoid, struct sock *sk, __u32 ack, __u32 acked)
     struct tcp_sock *tp = tcp_sk(sk);
     struct measurement *m;
     struct flow_key key;
-    struct cwnd_update *update;
+    struct user_update *update;
     
     // Send measurement to userspace
     m = bpf_ringbuf_reserve(&measurements, sizeof(*m), 0);

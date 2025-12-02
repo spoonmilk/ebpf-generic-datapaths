@@ -13,18 +13,6 @@ struct flow_key {
     u16 dport;
 } __attribute__((packed));
 
-// Measurements sent to userspace, taken from GenericCongAvoid
-struct measurement {
-    struct flow_key flow;
-    u32 acked;        // bytes acked
-    u32 sacked;       // selectively acked packets
-    u32 loss;         // lost packets
-    u32 rtt;          // microseconds
-    u32 inflight;     // packets
-    u8 was_timeout;   // reset on timeout
-    u8 _pad[3];
-} __attribute__((packed));
-
 // Flow events
 struct flow_event {
     u8 event_type;  // 1=created, 2=closed
@@ -34,11 +22,6 @@ struct flow_event {
     u32 mss;
 } __attribute__((packed));
 
-// For updates to cwnd from user CUBIC
-struct user_update {
-    u32 cwnd_bytes;
-    u32 flow_command;
-};
 
 // Helper, extracts flow key from socket
 static __always_inline void get_flow_key(struct sock *sk, struct flow_key *key) {
@@ -46,6 +29,27 @@ static __always_inline void get_flow_key(struct sock *sk, struct flow_key *key) 
     key->daddr = sk->__sk_common.skc_daddr;
     key->sport = sk->__sk_common.skc_num;
     key->dport = __bpf_ntohs(sk->__sk_common.skc_dport);
+}
+
+// TAKEN FROM EBPFCCA (Bokai Bi, Edward Wibuwo)
+static inline struct inet_connection_sock *inet_csk(const struct sock *sk) {
+  return (struct inet_connection_sock *)sk;
+}
+
+static inline void *inet_csk_ca(const struct sock *sk) {
+  return (void *)inet_csk(sk)->icsk_ca_priv;
+}
+
+static inline struct tcp_sock *tcp_sk(const struct sock *sk) {
+  return (struct tcp_sock *)sk;
+}
+
+static inline unsigned int tcp_left_out(const struct tcp_sock *tp) {
+  return tp->sacked_out + tp->lost_out;
+}
+
+static inline unsigned int tcp_packets_in_flight(const struct tcp_sock *tp) {
+  return tp->packets_out - tcp_left_out(tp) + tp->retrans_out;
 }
 
 #endif

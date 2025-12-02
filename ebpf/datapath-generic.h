@@ -43,26 +43,5 @@ struct ack_statistics {
     u32 now;
 };
 
-// TAKEN FROM EBPFCCA (Bokai Bi, Edward Wibuwo)
-static inline struct inet_connection_sock *inet_csk(const struct sock *sk) {
-  return (struct inet_connection_sock *)sk;
-}
-
-static inline void *inet_csk_ca(const struct sock *sk) {
-  return (void *)inet_csk(sk)->icsk_ca_priv;
-}
-
-static inline struct tcp_sock *tcp_sk(const struct sock *sk) {
-  return (struct tcp_sock *)sk;
-}
-
-static inline unsigned int tcp_left_out(const struct tcp_sock *tp) {
-  return tp->sacked_out + tp->lost_out;
-}
-
-static inline unsigned int tcp_packets_in_flight(const struct tcp_sock *tp) {
-  return tp->packets_out - tcp_left_out(tp) + tp->retrans_out;
-}
-
 #endif
 
