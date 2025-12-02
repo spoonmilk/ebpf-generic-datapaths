@@ -1,6 +1,7 @@
 #include "datapath-generic.h"
 #include "common.h"
 #include "vmlinux.h"
+#include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -65,10 +66,11 @@ void BPF_PROG(ebpf_generic_init, struct sock *sk) {
     }
 
     // Create and insert flow into map
-    struct flow fl = {
-        .key = key,
-        .cwnd = tp->snd_cwnd * tp->mss_cache // Store in bytes
-    };
+    struct flow fl = {.key = key,
+                      .cwnd = tp->snd_cwnd * tp->mss_cache, // Store in bytes
+                      .bytes_delivered_since_last = 0,
+                      .bytes_sent_since_last = 0,
+                      .last_rate_update_ns = bpf_ktime_get_ns()};
     bpf_map_update_elem(&flow_map, &key, &fl, BPF_ANY);
     num_flows++;
 
@@ -111,23 +113,6 @@ void BPF_PROG(ebpf_generic_release, struct sock *sk) {
     bpf_ringbuf_submit(release_event, 0);
 }
 
-// Measure flow/ack signals ; separate from rates
-static void measure_flack_signals(struct sock *sk) {
-    struct tcp_sock *tp = tcp_sk(sk);
-    struct measurement *m;
-    struct flow_key key;
-
-    // Setup message and flow key
-    m = bpf_ringbuf_reserve(&measurements, sizeof(*m), 0);
-    if (!m) {
-        return;
-    }
-    __builtin_memset(m, 0, sizeof(*m));
-    get_flow_key(sk, &key);
-
-    m->flow = key;
-}
-
 static void fill_flow_stats(struct sock *sk, struct flow *fl,
                             struct flow_statistics *stats) {
     struct tcp_sock *tp = tcp_sk(sk);
@@ -135,23 +120,32 @@ static void fill_flow_stats(struct sock *sk, struct flow *fl,
     stats->bytes_in_flight = tp->packets_out * tp->mss_cache;
     stats->bytes_pending = sk->sk_wmem_queued;
     stats->rtt_sample_us = tp->srtt_us >> 3;
+    stats->was_timeout = 0;
 }
 
 static void fill_ack_stats(struct sock *sk, u32 acked,
                            struct ack_statistics *stats) {
     struct tcp_sock *tp = tcp_sk(sk);
+    struct flow_key k;
+    struct ecn *ecn;
+
     stats->bytes_acked = acked;
     stats->packets_acked = acked / tp->mss_cache;
     stats->bytes_misordered = tp->sacked_out * tp->mss_cache;
     stats->packets_misordered = tp->sacked_out;
 
-    struct flow_key *k;
-    get_flow_key(sk, k);
-
-    // TODO: fix ecn shit
-    struct ecn *ecn;
+    get_flow_key(sk, &k);
     ecn = bpf_map_lookup_elem(&ecns, &k);
-    stats->ecn_packets = ecn ? *ecn : (struct ecn){0};
+    if (ecn) {
+        stats->ecn_packets = ecn->ecn_packets;
+        stats->ecn_bytes = ecn->ecn_bytes;
+    } else {
+        stats->ecn_packets = 0;
+        stats->ecn_bytes = 0;
+    }
+
+    stats->lost_pckts_sample = tp->lost_out;
+    stats->now = bpf_ktime_get_ns();
 }
 
 static void send_measurement(struct sock *sk, u32 acked, u8 was_timeout,
@@ -159,23 +153,70 @@ static void send_measurement(struct sock *sk, u32 acked, u8 was_timeout,
     struct tcp_sock *tp = tcp_sk(sk);
     struct measurement *m;
     struct flow_key key;
-    struct flow *fl; 
-    
+    struct flow *fl;
+
+    get_flow_key(sk, &key);
     fl = bpf_map_lookup_elem(&flow_map, &key);
-    bpf_ringbuf_reserve(&measurements, 0, sizeof(*m));
+    if (!fl) {
+        return;
+    }
 
-    // Populate measurement stats 
-    struct flow_statistics *fs;
-    struct ack_statistics *as;
-    fill_flow_stats(sk, fl, fs);
-    fill_ack_stats(sk, acked, as);
+    m = bpf_ringbuf_reserve(&measurements, sizeof(*m), 0);
+    if (!m) {
+        return;
+    }
+
+    __builtin_memset(m, 0, sizeof(*m));
+    m->flow = key;
+
+    fill_flow_stats(sk, fl, &m->flow_stats);
+    fill_ack_stats(sk, acked, &m->ack_stats);
     m->flow_stats.was_timeout = was_timeout;
-    m->snd_cwnd = fl->cwnd / tp->mss_cache;
-    m->pacing_rate = fl->pacing_rate; 
-
-    // Set measurement type then submit
+    m->snd_cwnd = tp->snd_cwnd;
+    m->snd_ssthresh = tp->snd_ssthresh;
+    m->pacing_rate = sk->sk_pacing_rate;
     m->measurement_type = meas_type;
+
+    struct inet_connection_sock *icsk = inet_csk(sk);
+    u8 ca_state_val;
+    bpf_core_read(&ca_state_val, sizeof(ca_state_val), icsk->icsk_ca_state);
+    m->ca_state = ca_state_val;
+
     bpf_ringbuf_submit(m, 0);
 
     fl->bytes_sent_since_last += acked;
+}
+
+static void apply_user_updates(struct sock *sk) {
+    struct tcp_sock *tp = tcp_sk(sk);
+    struct flow_key key;
+    struct user_update *update;
+    struct flow *fl;
+
+    get_flow_key(sk, &key);
+    update = bpf_map_lookup_elem(&user_command_map, &key);
+    if (!update) {
+        return;
+    }
+
+    fl = bpf_map_lookup_elem(&flow_map, &key);
+    if (!fl) {
+        return;
+    }
+
+    if (update->use_cwnd) {
+        tp->snd_cwnd = update->cwnd_bytes / tp->mss_cache;
+        fl->cwnd = update->cwnd_bytes;
+    }
+
+    if (update->use_pacing) {
+        sk->sk_pacing_rate = update->pacing_rate;
+        fl->pacing_rate = update->pacing_rate;
+    }
+
+    if (update->use_ssthresh) {
+        tp->snd_ssthresh = update->ssthresh / tp->mss_cache;
+    }
+
+    bpf_map_update_elem(&flow_map, &key, fl, BPF_ANY);
 }
