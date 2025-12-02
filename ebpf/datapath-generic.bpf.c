@@ -160,29 +160,22 @@ static void send_measurement(struct sock *sk, u32 acked, u8 was_timeout,
     struct measurement *m;
     struct flow_key key;
     struct flow *fl; 
-
+    
     fl = bpf_map_lookup_elem(&flow_map, &key);
     bpf_ringbuf_reserve(&measurements, 0, sizeof(*m));
 
+    // Populate measurement stats 
     struct flow_statistics *fs;
     struct ack_statistics *as;
     fill_flow_stats(sk, fl, fs);
-    fs->was_timeout = was_timeout;
-
     fill_ack_stats(sk, acked, as);
+    m->flow_stats.was_timeout = was_timeout;
+    m->snd_cwnd = fl->cwnd / tp->mss_cache;
+    m->pacing_rate = fl->pacing_rate; 
 
-    tp->snd_cwnd = fl->cwnd / tp->mss_cache;
-    sk->sk_pacing_rate = 
+    // Set measurement type then submit
+    m->measurement_type = meas_type;
+    bpf_ringbuf_submit(m, 0);
 
-    
-
-    // 1. Get flow key and lookup flow state
-    // 2. Reserve ringbuf space for measurement
-    // 3. Fill flow_stats using fill_flow_stats()
-    // 4. Fill ack_stats using fill_ack_stats()
-    // 5. Populate additional context (snd_cwnd, snd_ssthresh, pacing_rate,
-    // ca_state)
-    // 6. Set measurement_type
-    // 7. Submit to measurements ringbuf
-    // 8. Update fl->bytes_sent_since_last += acked (for rate tracking)
+    fl->bytes_sent_since_last += acked;
 }

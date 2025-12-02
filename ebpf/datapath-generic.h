@@ -14,6 +14,8 @@ struct flow {
     // Congestion window // in bytes -> note that kernel
     // tp->snd_cwnd is in packets - translate by * (1/tp->mss)
     u32 cwnd;
+    // Current pacing rate
+    u32 pacing_rate;
 
     u64 bytes_delivered_since_last; // For rate_incoming calculation
     u64 bytes_sent_since_last;      // For rate_outgoing calculation
