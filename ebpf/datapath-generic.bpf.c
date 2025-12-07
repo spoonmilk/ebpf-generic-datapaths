@@ -160,6 +160,7 @@ static void send_measurement(struct sock *sk, u32 acked, u8 was_timeout,
     struct measurement *m;
     struct flow_key key;
     struct flow *fl;
+    struct flow_rates *fr;
 
     get_flow_key(sk, &key);
     fl = bpf_map_lookup_elem(&flow_map, &key);
@@ -172,11 +173,20 @@ static void send_measurement(struct sock *sk, u32 acked, u8 was_timeout,
         return;
     }
 
+    fr = bpf_map_lookup_elem(&flow_rate_map, &key);
+    if(!fr) {
+        return;
+    }
+
     __builtin_memset(m, 0, sizeof(*m));
     m->flow = key;
 
     fill_flow_stats(sk, fl, &m->flow_stats);
     fill_ack_stats(sk, acked, &m->ack_stats);
+
+    m->flow_stats.rates.rate_incoming = fr->rate_incoming;
+    m->flow_stats.rates.rate_outgoing = fr->rate_outgoing;
+
     m->flow_stats.was_timeout = was_timeout;
     m->snd_cwnd = tp->snd_cwnd;
     m->snd_ssthresh = tp->snd_ssthresh;
@@ -276,8 +286,7 @@ void BPF_PROG(ebpf_generic_cong_control, struct sock *sk,
             (fl->bytes_sent_since_last * 1000000000) / elapsed_ns;
 
         struct flow_rates rates = {.rate_incoming = rate_incoming,
-                                   .rate_outgoing = rate_outgoing,
-                                   .last_updated = now};
+                                   .rate_outgoing = rate_outgoing};
         bpf_map_update_elem(&flow_rate_map, &key, &rates, BPF_ANY);
 
         fl->bytes_delivered_since_last = 0;

@@ -45,6 +45,7 @@ pub struct AckStatistics {
 #[derive(Copy, Clone)]
 pub struct Measurement {
     pub flow: FlowKey,
+    pub rates: FlowRates,
     pub flow_stats: FlowStatistics,
     pub ack_stats: AckStatistics,
     pub snd_cwnd: u32,
@@ -60,7 +61,6 @@ pub struct Measurement {
 pub struct FlowRates {
     pub rate_incoming: u32,
     pub rate_outgoing: u32,
-    pub last_updated: u64,
 }
 
 #[repr(C, packed)]
@@ -155,6 +155,9 @@ impl EbpfDatapath {
                 let flow = m.flow;
                 let flow_id = flow_key_to_id(&flow);
 
+                let rate_incoming = m.rates.rate_incoming;
+                let rate_outgoing = m.rates.rate_outgoing;
+
                 // Copy values to avoid taking references to packed fields
                 let bytes_acked = m.ack_stats.bytes_acked;
                 let lost_pkts_sample = m.ack_stats.lost_pkts_sample;
@@ -163,7 +166,9 @@ impl EbpfDatapath {
                 let measurement_type = m.measurement_type;
 
                 debug!(
-                    "Measurement: flow={:016x}, acked={}, loss={}, rtt={}us, inflight={}, type={}",
+                    "Measurement: flow={:016x}, rate_incoming={}, rate_outgoing={}, acked={}, loss={}, rtt={}us, inflight={}, type={}",
+                    rate_incoming,
+                    rate_outgoing,
                     flow_id,
                     bytes_acked,
                     lost_pkts_sample,
@@ -246,36 +251,6 @@ impl EbpfDatapath {
 
     pub fn cleanup_flow(&self, flow_id: u64) {
         cleanup_flow_key(flow_id);
-    }
-
-    pub fn read_flow_rates(&self, flow_id: u64) -> Result<Option<FlowRates>> {
-        let map = self
-            .obj
-            .maps()
-            .find(|m| m.name() == "flow_rate_map")
-            .context("Failed to find flow_rate_map")?;
-
-        let key = id_to_flow_key(flow_id);
-
-        let key_bytes = unsafe {
-            std::slice::from_raw_parts(
-                &key as *const _ as *const u8,
-                std::mem::size_of::<FlowKey>(),
-            )
-        };
-
-        match map.lookup(key_bytes, MapFlags::ANY) {
-            Ok(Some(value_bytes)) => {
-                if value_bytes.len() >= std::mem::size_of::<FlowRates>() {
-                    let rates = unsafe { &*(value_bytes.as_ptr() as *const FlowRates) };
-                    Ok(Some(*rates))
-                } else {
-                    Ok(None)
-                }
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(anyhow::anyhow!("Failed to lookup flow_rate_map: {}", e)),
-        }
     }
 
     pub fn update_cwnd(&mut self, flow_id: u64, cwnd_bytes: u32) -> Result<()> {

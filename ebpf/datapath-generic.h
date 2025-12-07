@@ -29,13 +29,13 @@ struct ecn {
 } _ecn = {0};
 
 struct flow_rates {
-    u32 rate_incoming; // Receive rate in bytes/sec
-    u32 rate_outgoing; // Send rate in bytes/sec
-    u64 last_updated;  // Timestamp of last rate calculation
+    u32 rate_incoming;
+    u32 rate_outgoing;
 };
 
 // Per-flow statistics
 struct flow_statistics {
+    struct flow_rates rates;
     u32 packets_in_flight;
     u32 bytes_in_flight;
     u32 bytes_pending;

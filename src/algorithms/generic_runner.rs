@@ -99,9 +99,8 @@ impl<A: GenericAlgorithm> AlgorithmRunner for GenericRunner<A> {
                     pacing_rate: measurement.pacing_rate,
                     ca_state: measurement.ca_state,
                     now: measurement.ack_stats.now,
-
-                    rate_incoming: 0,
-                    rate_outgoing: 0,
+                    rate_incoming: measurement.rates.rate_incoming,
+                    rate_outgoing: measurement.rates.rate_outgoing,
                 };
 
                 if report.was_timeout {

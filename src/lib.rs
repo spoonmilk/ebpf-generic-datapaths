@@ -30,7 +30,7 @@ pub struct Report {
     pub ecn_packets: u32,
     pub lost_pkts_sample: u32,
 
-    // Rate statistics (from flow_rate_map)
+    // Rate statistics
     pub rate_incoming: u32,
     pub rate_outgoing: u32,
 
@@ -62,15 +62,6 @@ pub struct AckStatistics {
     pub now: u64,
 }
 
-/// Rate statistics computed by userspace
-#[derive(Debug, Clone, Copy)]
-pub struct FlowRates {
-    pub rate_incoming: u32,
-    pub rate_outgoing: u32,
-    pub last_updated: u64,
-}
-
-// Update agent -> datapath
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CwndUpdate {
     pub cwnd_bytes: Option<u32>,

@@ -11,6 +11,7 @@ BANDWIDTH="10mbit"
 LOSS="1%"
 TEST_DURATION=10
 BPF_BINARY_PATH="./target/release/ebpf-ccp-cubic"
+ALGORITHM="${ALGORITHM:-cubic}"  # Default to cubic if not specified
 
 # Colors for output
 RED='\033[0;31m'
@@ -149,10 +150,10 @@ setup_network() {
 }
 
 start_bpf_daemon() {
-    log_info "Starting eBPF datapath daemon..."
+    log_info "Starting eBPF datapath daemon with algorithm: ${ALGORITHM}..."
 
-    # Start the daemon in the background
-    ${BPF_BINARY_PATH} &
+    # Start the daemon in the background with specified algorithm
+    ${BPF_BINARY_PATH} --algorithm ${ALGORITHM} &
     BPF_PID=$!
 
     # Wait for it to initialize
@@ -166,14 +167,32 @@ start_bpf_daemon() {
     fi
 
     # Verify the struct_ops is registered
+    # Map algorithm name to expected struct_ops name
+    case "${ALGORITHM}" in
+        cubic)
+            EXPECTED_CCA="ebpf_ccp_cubic"
+            ;;
+        reno)
+            EXPECTED_CCA="ebpf_ccp_reno"
+            ;;
+        generic-cubic|generic-reno)
+            EXPECTED_CCA="ebpf_ccp_generic"
+            ;;
+        *)
+            EXPECTED_CCA="ebpf_ccp_${ALGORITHM}"
+            ;;
+    esac
+
     sleep 1
-    if ! sysctl net.ipv4.tcp_available_congestion_control | grep -q ebpf_cubic; then
-        log_error "ebpf_cubic not found in available congestion control algorithms"
+    if ! sysctl net.ipv4.tcp_available_congestion_control | grep -q "${EXPECTED_CCA}"; then
+        log_error "${EXPECTED_CCA} not found in available congestion control algorithms"
+        log_error "Available algorithms:"
+        sysctl net.ipv4.tcp_available_congestion_control
         kill $BPF_PID 2>/dev/null || true
         exit 1
     fi
 
-    log_info "eBPF daemon started successfully (PID: $BPF_PID)"
+    log_info "eBPF daemon started successfully (PID: $BPF_PID, CCA: ${EXPECTED_CCA})"
 }
 
 run_basic_test() {
@@ -255,21 +274,30 @@ show_usage() {
 Usage: $0 [MODE]
 
 Test modes:
-  basic    - Just verify eBPF CUBIC loads and registers (default)
+  basic    - Just verify eBPF algorithm loads and registers (default)
   quick    - Run a 3-second iperf3 test
   full     - Run full ${TEST_DURATION}-second iperf3 test with network emulation
 
 Environment variables:
+  ALGORITHM      - Algorithm to test (default: cubic)
+                   Options: cubic, reno, generic-cubic, generic-reno
   TEST_DURATION  - Duration of iperf test in seconds (default: 10)
   LATENCY        - Network latency to emulate (default: 20ms)
   BANDWIDTH      - Bandwidth limit (default: 10mbit)
   LOSS           - Packet loss percentage (default: 1%)
 
 Examples:
-  sudo $0              # Run basic test
-  sudo $0 quick        # Run quick test
-  sudo $0 full         # Run full test
-  sudo TEST_DURATION=30 $0 full  # Run 30-second test
+  sudo $0                            # Run basic test (cubic)
+  sudo $0 quick                      # Run quick test (cubic)
+  sudo ALGORITHM=reno $0 quick       # Run quick test with Reno
+  sudo ALGORITHM=generic-cubic $0 full  # Run full test with generic CUBIC
+  sudo TEST_DURATION=30 $0 full      # Run 30-second test
+
+Available algorithms:
+  - cubic            : CUBIC with legacy algorithm-specific datapath
+  - reno             : Reno with legacy algorithm-specific datapath
+  - generic-cubic    : CUBIC with generic datapath (NEW)
+  - generic-reno     : Reno with generic datapath (NEW)
 
 EOF
 }

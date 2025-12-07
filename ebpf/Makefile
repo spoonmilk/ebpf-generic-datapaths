@@ -19,7 +19,7 @@ vmlinux: vmlinux.h
 .output/generic.bpf.o: datapath-generic.bpf.c vmlinux.h common.h
 	@mkdir -p .output
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
-		-DCCA_NAME=ebpf_ccp_path -DCCA_NAME_STR='"ebpf_ccp_path"' \
+		-DCCA_NAME=ebpf_ccp_path -DCCA_NAME_STR='"ebpf_ccp_generic"' \
 		-c datapath-generic.bpf.c -o .output/generic.bpf.o
 	@echo "eBPF object compiled: .output/generic.bpf.o (GENERIC)"
 
