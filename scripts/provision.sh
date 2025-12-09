@@ -29,6 +29,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -y install \
     tcpdump \
     iperf3 \
     netcat \
+    mininet \
     socat \
     jq \
     tshark \
