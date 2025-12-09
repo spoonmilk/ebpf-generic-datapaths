@@ -14,7 +14,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -y install \
 sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -y install \
     build-essential rsync htop pv vim tmux ltrace strace \
     curl git zip unzip net-tools dnsutils gcc clang wget \
-    python3 python3-venv \
+    python3 python3-pip python3-venv \
 
 
 # Install eBPF dependencies
