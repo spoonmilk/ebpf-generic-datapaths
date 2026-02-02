@@ -1,4 +1,9 @@
-# eBPF-CUBIC CCP Congestion Control
+# eBPF-CCP Congestion Control
+
+> [!NOTE]
+> This project is now legacy, as it was mainly created as proof-of-viability
+> for my current research. More to come for eBPF/congestion control, though!
+> - Alex
 
 ## Dependencies
 
@@ -8,13 +13,15 @@ Make sure vmlinux is supported on your kernel version.
 
 ## Architecture
 
-This project implements the CUBIC datapath from generic-cong-avoid in eBPF,
-replacing the CCP datapath language programs with eBPF hooked into the TCP
-stack with tcp_struct_ops.
+This project originally stemmed from efforts to implement the CCP project
+in eBPF by re-implementing libccp in eBPF, though this proved infeasible with
+verifier restrictions. 
 
 Previous attempts have used a userspace libccp hooked to an eBPF program
 which implemented struct_ops updates, but required a full userspace libccp
-running process throughout. This implementation removes that layer of indirection.
+running process throughout. This implementation removes that layer of indirection,
+and also implements a generic datapath program that can support a variety of
+algorithms.
 
 ### Components
 
@@ -30,9 +37,8 @@ running process throughout. This implementation removes that layer of indirectio
    - Runs CUBIC algorithm logic per-flow
    - Sends cwnd updates back to kernel via BPF maps
 
-3. **CUBIC Implementation** (`src/cubic.rs`, `src/lib.rs`):
-   - Taken from `ccp-project/GenericCongAvoid`
-   - Implements `GenericCongAvoidFlow` trait
+3. **Algorithm Implementations** (`src/algorithms`):
+   - Implement a generic algorithm/runner trait that act as userspace policy.
 
 ## Running
 
@@ -92,8 +98,6 @@ rm -rf ~/.cargo/registry
 Solution:
 
 Still trying to fix this one. I just power the VM off, pray, then restart
-
-## Acknowledgments
 
 This repo was created and written by Alex Khosrowshahi (Brown '27) for research
 under Professor Akshay Narayan as part of the CCP project.
