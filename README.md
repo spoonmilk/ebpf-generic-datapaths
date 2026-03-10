@@ -1,4 +1,6 @@
-# TRAFIK!
+# eBPF Congestion Control
+
+> Note: This repository is considered legacy. All current work will be done in the 'trafik' repository.
 
 ## Dependencies
 
